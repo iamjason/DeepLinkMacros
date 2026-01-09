@@ -68,48 +68,91 @@ struct CodeGenerator {
       return "{ _ in .\(caseName) }"
     }
 
-    // Extract path parameter names from pattern
+    // Extract path parameter names from pattern (in order)
     let pathParamNames = segments.compactMap { segment -> String? in
       if case .parameter(let name) = segment { return name }
       return nil
     }
 
+    // Build a set of query param names for fast lookup
+    let queryParamSet = Set(queryParams)
+
+    // Track which path params have been used (for positional fallback)
+    var usedPathParamIndices = Set<Int>()
+
     // Generate parameter extraction code
     var extractionLines: [String] = []
     var caseArguments: [String] = []
 
-    for (index, param) in caseParams.enumerated() {
+    for param in caseParams {
       let paramName = param.name
 
-      // Determine if this is a path or query parameter
-      let isPathParam = index < pathParamNames.count
-      let urlParamName = isPathParam ? pathParamNames[index] : paramName
+      // Determine the source of this parameter:
+      // 1. Check if param name matches a path parameter name (name-based matching)
+      // 2. Check if param name is in query params
+      // 3. Check if param has a default value (skip extraction)
+      // 4. Check if param is optional (use nil)
+      // 5. Otherwise, try positional path param matching as fallback
 
-      let accessor: String
-      if isPathParam {
-        accessor = generatePathAccessor(urlParamName: urlParamName, type: param.type, isOptional: param.isOptional)
-      } else if queryParams.contains(paramName) || queryParams.contains(urlParamName) {
-        accessor = generateQueryAccessor(
-          urlParamName: urlParamName,
-          type: param.type,
-          isOptional: param.isOptional,
-          isArray: param.isArray,
-          elementType: param.elementType
+      var accessor: String? = nil
+
+      // Try name-based path param matching first
+      if let pathIndex = pathParamNames.firstIndex(of: paramName) {
+        usedPathParamIndices.insert(pathIndex)
+        accessor = generatePathAccessor(
+          urlParamName: paramName,
+          param: param
         )
-      } else if param.hasDefault {
-        // Parameter has default value, skip extraction
+      }
+      // Check query params by name
+      else if queryParamSet.contains(paramName) {
+        accessor = generateQueryAccessor(
+          urlParamName: paramName,
+          param: param
+        )
+      }
+      // Parameter has default value - skip extraction, let Swift use default
+      else if param.hasDefault {
         continue
-      } else {
-        // Required parameter not in pattern or query - use nil accessor
+      }
+      // Optional parameter not in URL - use nil
+      else if param.isOptional {
         accessor = "nil"
       }
+      // Fallback: try positional matching for remaining path params
+      else {
+        // Find first unused path param
+        for (index, pathParamName) in pathParamNames.enumerated() {
+          if !usedPathParamIndices.contains(index) {
+            usedPathParamIndices.insert(index)
+            accessor = generatePathAccessor(
+              urlParamName: pathParamName,
+              param: param
+            )
+            break
+          }
+        }
+      }
 
-      // Non-optional arrays use ?? [] in accessor, so don't need guard
-      let needsGuard = !param.isOptional && !param.hasDefault && !param.isArray
-      if needsGuard {
-        extractionLines.append("guard let \(paramName) = \(accessor) else { return nil }")
+      // If we still have no accessor, this is an error case
+      guard let finalAccessor = accessor else {
+        // Required parameter with no source - route will never match
+        extractionLines.append("let \(paramName): \(param.type)? = nil")
+        extractionLines.append("guard let \(paramName) = \(paramName) else { return nil }")
+        caseArguments.append("\(paramName): \(paramName)")
+        continue
+      }
+
+      // Determine if we need a guard (required non-optional, non-array, non-enum-with-default)
+      let needsGuard = !param.isOptional && !param.hasDefault && !param.isArray && accessor != "nil"
+
+      if needsGuard && param.isEnumType {
+        // For required enums, we need guard but the accessor returns optional
+        extractionLines.append("guard let \(paramName): \(param.type) = \(finalAccessor) else { return nil }")
+      } else if needsGuard {
+        extractionLines.append("guard let \(paramName) = \(finalAccessor) else { return nil }")
       } else {
-        extractionLines.append("let \(paramName) = \(accessor)")
+        extractionLines.append("let \(paramName) = \(finalAccessor)")
       }
 
       caseArguments.append("\(paramName): \(paramName)")
@@ -126,8 +169,14 @@ struct CodeGenerator {
     """
   }
 
-  private static func generatePathAccessor(urlParamName: String, type: String, isOptional: Bool) -> String {
-    switch type {
+  private static func generatePathAccessor(urlParamName: String, param: CaseInfo.CaseParameter) -> String {
+    // Handle enum types (RawRepresentable)
+    if param.isEnumType {
+      return "params.pathEnum(\"\(urlParamName)\")"
+    }
+
+    // Handle scalar types
+    switch param.type {
     case "Int":
       return "params.pathInt(\"\(urlParamName)\")"
     case "Bool":
@@ -137,24 +186,24 @@ struct CodeGenerator {
     }
   }
 
-  private static func generateQueryAccessor(urlParamName: String, type: String, isOptional: Bool, isArray: Bool, elementType: String?) -> String {
+  private static func generateQueryAccessor(urlParamName: String, param: CaseInfo.CaseParameter) -> String {
     // Handle array types
-    if isArray, let element = elementType {
+    if param.isArray, let element = param.elementType {
       switch element {
       case "Int":
-        return isOptional
+        return param.isOptional
           ? "params.queryInts(\"\(urlParamName)\")"
           : "(params.queryInts(\"\(urlParamName)\") ?? [])"
       case "String":
-        return isOptional
+        return param.isOptional
           ? "params.queryStrings(\"\(urlParamName)\")"
           : "(params.queryStrings(\"\(urlParamName)\") ?? [])"
       case "Double":
-        return isOptional
+        return param.isOptional
           ? "params.queryDoubles(\"\(urlParamName)\")"
           : "(params.queryDoubles(\"\(urlParamName)\") ?? [])"
       case "Bool":
-        return isOptional
+        return param.isOptional
           ? "params.queryBools(\"\(urlParamName)\")"
           : "(params.queryBools(\"\(urlParamName)\") ?? [])"
       default:
@@ -163,8 +212,13 @@ struct CodeGenerator {
       }
     }
 
+    // Handle enum types (RawRepresentable)
+    if param.isEnumType {
+      return "params.queryEnum(\"\(urlParamName)\")"
+    }
+
     // Handle scalar types
-    switch type {
+    switch param.type {
     case "Int":
       return "params.queryInt(\"\(urlParamName)\")"
     case "Bool":

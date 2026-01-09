@@ -33,20 +33,23 @@ public struct DeepLinkRouteMacro: PeerMacro {
     // 4. Analyze the enum case
     let caseInfo = try CaseAnalyzer.analyze(caseElement)
 
-    // 5. Validate array parameter usage
-    let pathParamCount = patternSegments.filter { if case .parameter = $0 { return true }; return false }.count
-    for (index, param) in caseInfo.parameters.enumerated() {
-      if param.isArray {
-        // Arrays cannot be used as path parameters
-        if index < pathParamCount {
-          throw DiagnosticError.arrayInPathParameter(param.name)
-        }
-        // Validate array element type is supported
-        if let elementType = param.elementType {
-          let supportedTypes = ["Int", "String", "Double", "Bool"]
-          if !supportedTypes.contains(elementType) {
-            throw DiagnosticError.unsupportedArrayElementType(elementType)
-          }
+    // 5. Validate parameter usage
+    let pathParamNames = Set(patternSegments.compactMap { segment -> String? in
+      if case .parameter(let name) = segment { return name }
+      return nil
+    })
+
+    for param in caseInfo.parameters {
+      // Arrays cannot be used as path parameters (name-based check)
+      if param.isArray && pathParamNames.contains(param.name) {
+        throw DiagnosticError.arrayInPathParameter(param.name)
+      }
+
+      // Validate array element type is supported (scalar types only, no enums)
+      if param.isArray, let elementType = param.elementType {
+        let supportedTypes = ["Int", "String", "Double", "Bool"]
+        if !supportedTypes.contains(elementType) {
+          throw DiagnosticError.unsupportedArrayElementType(elementType)
         }
       }
     }

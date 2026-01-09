@@ -107,10 +107,12 @@ case episode(slug: String)
 | `Bool` | `"true"`, `"1"`, `"yes"` | `true` |
 | `Bool` | `"false"`, `"0"`, `"no"` | `false` |
 | `Double` | `"3.14"` | `Double.init` |
+| `MyEnum` | `"rawValue"` | `MyEnum(rawValue:)` |
 | `String?` | Missing | `nil` |
 | `Int?` | Missing | `nil` |
 | `Bool?` | Missing | `nil` |
 | `Double?` | Missing | `nil` |
+| `MyEnum?` | Missing/Invalid | `nil` |
 
 ### Array Parameters
 
@@ -142,6 +144,68 @@ enum SearchDestination {
 - Whitespace is trimmed (e.g., `"1, 2, 3"` → `[1, 2, 3]`)
 - Empty or missing values return `nil` for optional arrays, `[]` for required arrays
 - Arrays are only supported in query parameters, not path parameters
+
+### Enum Parameters
+
+`RawRepresentable` enums with `String` or `Int` raw values are supported as parameters:
+
+```swift
+// Define your enum with RawRepresentable conformance
+enum MessageSource: String {
+  case careTeam = "care_team"
+  case dashboard = "dashboard"
+  case deepLink = "deep_link"
+}
+
+enum Priority: Int {
+  case low = 1
+  case medium = 2
+  case high = 3
+}
+
+@DeepLinkDestination
+enum MessageDestination {
+  // Optional enum in query parameter
+  @DeepLinkRoute("/message/:id", query: ["source"])
+  case message(id: Int, source: MessageSource?)
+
+  // Required enum in query parameter
+  @DeepLinkRoute("/task/:id", query: ["priority"])
+  case task(id: Int, priority: Priority)
+
+  // Enum in path parameter
+  @DeepLinkRoute("/by-source/:source/:id")
+  case bySource(source: MessageSource, id: Int)
+}
+
+// Matches:
+// /message/123?source=dashboard       → .message(id: 123, source: .dashboard)
+// /message/123                        → .message(id: 123, source: nil)
+// /task/456?priority=3                → .task(id: 456, priority: .high)
+// /by-source/care_team/789            → .bySource(source: .careTeam, id: 789)
+```
+
+**Notes:**
+- Enums must conform to `RawRepresentable` with `String` or `Int` raw values
+- Invalid enum values return `nil` for optional parameters
+- Invalid enum values cause route match failure for required parameters
+- Arrays of enums are not supported
+
+### Default Parameter Values
+
+Parameters with default values are automatically skipped during URL extraction:
+
+```swift
+@DeepLinkDestination
+enum BookingDestination {
+  @DeepLinkRoute("/book/:providerId")
+  case booking(displayName: String = "Unknown", providerId: Int)
+}
+
+// Matches: /book/123 → .booking(displayName: "Unknown", providerId: 123)
+```
+
+This is useful for parameters that should always use a fixed value when navigating via deep link, but can be customized when creating the destination programmatically.
 
 ## Multi-Enum Routing
 
@@ -265,6 +329,10 @@ params.queryInts("ids")    // [Int]? from query
 params.queryStrings("tags")// [String]? from query
 params.queryDoubles("prices") // [Double]? from query
 params.queryBools("flags") // [Bool]? from query
+
+// Enum accessors (RawRepresentable with String or Int)
+let source: MyEnum? = params.queryEnum("source")
+let priority: MyEnum? = params.pathEnum("priority")
 ```
 
 ## Adding New Routes

@@ -20,6 +20,8 @@ struct CaseInfo {
     let hasDefault: Bool
     let isArray: Bool
     let elementType: String?  // For arrays, the element type (e.g., "Int" for [Int])
+    let isScalarType: Bool    // True for String, Int, Bool, Double
+    let isEnumType: Bool      // True for unknown types (assumed RawRepresentable)
   }
 }
 
@@ -53,13 +55,20 @@ struct CaseAnalyzer {
         baseType = "[\(element)]"
       }
 
+      // Detect if this is a known scalar type or an unknown (enum) type
+      let scalarTypes = ["String", "Int", "Bool", "Double"]
+      let isScalarType = scalarTypes.contains(baseType)
+      let isEnumType = !isScalarType && !isArray
+
       return CaseInfo.CaseParameter(
         name: paramName,
         type: baseType,
         isOptional: isOptional,
         hasDefault: hasDefault,
         isArray: isArray,
-        elementType: elementType
+        elementType: elementType,
+        isScalarType: isScalarType,
+        isEnumType: isEnumType
       )
     }
 

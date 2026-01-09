@@ -372,4 +372,199 @@ final class DeepLinkRouteMacroTests: XCTestCase {
     )
     #endif
   }
+
+  // MARK: - Enum Parameter Tests
+
+  func testRouteWithOptionalEnumInQuery() throws {
+    #if canImport(DeepLinkMacros)
+    assertMacroExpansion(
+      """
+      enum MessageDestination {
+        @DeepLinkRoute("/message/:id", query: ["source"])
+        case message(id: Int, source: MessageSource?)
+      }
+      """,
+      expandedSource: """
+      enum MessageDestination {
+        case message(id: Int, source: MessageSource?)
+
+        static let __route_message = DeepLinkRouteDefinition<Self>(
+          pattern: "/message/:id",
+          segments: [.literal("message"), .parameter("id")],
+          queryParams: ["source"],
+          build: { params in
+              guard let id = params.pathInt("id") else {
+                  return nil
+              }
+              let source = params.queryEnum("source")
+              return .message(id: id, source: source)
+            }
+        )
+      }
+      """,
+      macros: testMacros
+    )
+    #endif
+  }
+
+  func testRouteWithRequiredEnumInQuery() throws {
+    #if canImport(DeepLinkMacros)
+    assertMacroExpansion(
+      """
+      enum TaskDestination {
+        @DeepLinkRoute("/task/:id", query: ["priority"])
+        case task(id: Int, priority: Priority)
+      }
+      """,
+      expandedSource: """
+      enum TaskDestination {
+        case task(id: Int, priority: Priority)
+
+        static let __route_task = DeepLinkRouteDefinition<Self>(
+          pattern: "/task/:id",
+          segments: [.literal("task"), .parameter("id")],
+          queryParams: ["priority"],
+          build: { params in
+              guard let id = params.pathInt("id") else {
+                  return nil
+              }
+              guard let priority: Priority = params.queryEnum("priority") else {
+                  return nil
+              }
+              return .task(id: id, priority: priority)
+            }
+        )
+      }
+      """,
+      macros: testMacros
+    )
+    #endif
+  }
+
+  func testRouteWithEnumInPath() throws {
+    #if canImport(DeepLinkMacros)
+    assertMacroExpansion(
+      """
+      enum BySourceDestination {
+        @DeepLinkRoute("/by-source/:source/:id")
+        case bySource(source: MessageSource, id: Int)
+      }
+      """,
+      expandedSource: """
+      enum BySourceDestination {
+        case bySource(source: MessageSource, id: Int)
+
+        static let __route_bySource = DeepLinkRouteDefinition<Self>(
+          pattern: "/by-source/:source/:id",
+          segments: [.literal("by-source"), .parameter("source"), .parameter("id")],
+          queryParams: [],
+          build: { params in
+              guard let source: MessageSource = params.pathEnum("source") else {
+                  return nil
+              }
+              guard let id = params.pathInt("id") else {
+                  return nil
+              }
+              return .bySource(source: source, id: id)
+            }
+        )
+      }
+      """,
+      macros: testMacros
+    )
+    #endif
+  }
+
+  // MARK: - Default Value Parameter Tests
+
+  func testRouteWithDefaultValueParameter() throws {
+    #if canImport(DeepLinkMacros)
+    assertMacroExpansion(
+      """
+      enum BookingDestination {
+        @DeepLinkRoute("/book/:providerId")
+        case booking(displayName: String = "Unknown", providerId: Int)
+      }
+      """,
+      expandedSource: """
+      enum BookingDestination {
+        case booking(displayName: String = "Unknown", providerId: Int)
+
+        static let __route_booking = DeepLinkRouteDefinition<Self>(
+          pattern: "/book/:providerId",
+          segments: [.literal("book"), .parameter("providerId")],
+          queryParams: [],
+          build: { params in
+              guard let providerId = params.pathInt("providerId") else {
+                  return nil
+              }
+              return .booking(providerId: providerId)
+            }
+        )
+      }
+      """,
+      macros: testMacros
+    )
+    #endif
+  }
+
+  func testRouteWithMultipleDefaultValues() throws {
+    #if canImport(DeepLinkMacros)
+    assertMacroExpansion(
+      """
+      enum ProfileDestination {
+        @DeepLinkRoute("/profile/:id")
+        case profile(title: String = "Profile", id: Int, showHeader: Bool = true)
+      }
+      """,
+      expandedSource: """
+      enum ProfileDestination {
+        case profile(title: String = "Profile", id: Int, showHeader: Bool = true)
+
+        static let __route_profile = DeepLinkRouteDefinition<Self>(
+          pattern: "/profile/:id",
+          segments: [.literal("profile"), .parameter("id")],
+          queryParams: [],
+          build: { params in
+              guard let id = params.pathInt("id") else {
+                  return nil
+              }
+              return .profile(id: id)
+            }
+        )
+      }
+      """,
+      macros: testMacros
+    )
+    #endif
+  }
+
+  func testRouteWithMixedDefaultsAndQueryParams() throws {
+    #if canImport(DeepLinkMacros)
+    assertMacroExpansion(
+      """
+      enum SearchDestination {
+        @DeepLinkRoute("/search", query: ["term"])
+        case search(source: String = "deep_link", term: String?, limit: Int = 20)
+      }
+      """,
+      expandedSource: """
+      enum SearchDestination {
+        case search(source: String = "deep_link", term: String?, limit: Int = 20)
+
+        static let __route_search = DeepLinkRouteDefinition<Self>(
+          pattern: "/search",
+          segments: [.literal("search")],
+          queryParams: ["term"],
+          build: { params in
+              let term = params.query("term")
+              return .search(term: term)
+            }
+        )
+      }
+      """,
+      macros: testMacros
+    )
+    #endif
+  }
 }

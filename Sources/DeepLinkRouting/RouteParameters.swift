@@ -107,4 +107,30 @@ public struct RouteParameters: Sendable {
       }
     return result.isEmpty ? nil : result
   }
+
+  // MARK: - RawRepresentable Enum Access
+
+  /// Gets a RawRepresentable enum with String raw value from a query parameter.
+  /// Returns nil if the parameter is missing or the raw value doesn't match any case.
+  public func queryEnum<E: RawRepresentable>(_ name: String) -> E? where E.RawValue == String {
+    queryParams[name].flatMap { E(rawValue: $0) }
+  }
+
+  /// Gets a RawRepresentable enum with Int raw value from a query parameter.
+  /// Returns nil if the parameter is missing, not a valid integer, or doesn't match any case.
+  public func queryEnum<E: RawRepresentable>(_ name: String) -> E? where E.RawValue == Int {
+    queryParams[name].flatMap { Int($0) }.flatMap { E(rawValue: $0) }
+  }
+
+  /// Gets a RawRepresentable enum with String raw value from a path parameter.
+  /// Returns nil if the parameter is missing or the raw value doesn't match any case.
+  public func pathEnum<E: RawRepresentable>(_ name: String) -> E? where E.RawValue == String {
+    pathParams[name].flatMap { E(rawValue: $0) }
+  }
+
+  /// Gets a RawRepresentable enum with Int raw value from a path parameter.
+  /// Returns nil if the parameter is missing, not a valid integer, or doesn't match any case.
+  public func pathEnum<E: RawRepresentable>(_ name: String) -> E? where E.RawValue == Int {
+    pathParams[name].flatMap { Int($0) }.flatMap { E(rawValue: $0) }
+  }
 }
