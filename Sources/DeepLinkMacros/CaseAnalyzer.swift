@@ -18,6 +18,8 @@ struct CaseInfo {
     let type: String
     let isOptional: Bool
     let hasDefault: Bool
+    let isArray: Bool
+    let elementType: String?  // For arrays, the element type (e.g., "Int" for [Int])
   }
 }
 
@@ -38,21 +40,53 @@ struct CaseAnalyzer {
       let hasDefault = param.defaultValue != nil
 
       // Extract base type (remove Optional wrapper)
-      let baseType: String
+      var baseType: String
       if let optionalType = param.type.as(OptionalTypeSyntax.self) {
         baseType = optionalType.wrappedType.trimmedDescription
       } else {
         baseType = typeString.replacingOccurrences(of: "?", with: "")
       }
 
+      // Detect array types: [Element] or Array<Element>
+      let (isArray, elementType) = detectArrayType(baseType)
+      if isArray, let element = elementType {
+        baseType = "[\(element)]"
+      }
+
       return CaseInfo.CaseParameter(
         name: paramName,
         type: baseType,
         isOptional: isOptional,
-        hasDefault: hasDefault
+        hasDefault: hasDefault,
+        isArray: isArray,
+        elementType: elementType
       )
     }
 
     return CaseInfo(name: caseName, parameters: parameters)
+  }
+
+  /// Detects if a type string represents an array and extracts the element type.
+  /// Supports `[Element]` and `Array<Element>` syntax.
+  private static func detectArrayType(_ typeString: String) -> (isArray: Bool, elementType: String?) {
+    let trimmed = typeString.trimmingCharacters(in: .whitespaces)
+
+    // Check for [Element] syntax
+    if trimmed.hasPrefix("[") && trimmed.hasSuffix("]") {
+      let element = String(trimmed.dropFirst().dropLast()).trimmingCharacters(in: .whitespaces)
+      if !element.isEmpty {
+        return (true, element)
+      }
+    }
+
+    // Check for Array<Element> syntax
+    if trimmed.hasPrefix("Array<") && trimmed.hasSuffix(">") {
+      let element = String(trimmed.dropFirst(6).dropLast()).trimmingCharacters(in: .whitespaces)
+      if !element.isEmpty {
+        return (true, element)
+      }
+    }
+
+    return (false, nil)
   }
 }

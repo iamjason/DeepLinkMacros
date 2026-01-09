@@ -195,4 +195,181 @@ final class DeepLinkRouteMacroTests: XCTestCase {
     )
     #endif
   }
+
+  // MARK: - Array Parameter Tests
+
+  func testRouteWithOptionalIntArray() throws {
+    #if canImport(DeepLinkMacros)
+    assertMacroExpansion(
+      """
+      enum SearchDestination {
+        @DeepLinkRoute("/search", query: ["ids"])
+        case searchWithIds(ids: [Int]?)
+      }
+      """,
+      expandedSource: """
+      enum SearchDestination {
+        case searchWithIds(ids: [Int]?)
+
+        static let __route_searchWithIds = DeepLinkRouteDefinition<Self>(
+          pattern: "/search",
+          segments: [.literal("search")],
+          queryParams: ["ids"],
+          build: { params in
+              let ids = params.queryInts("ids")
+              return .searchWithIds(ids: ids)
+            }
+        )
+      }
+      """,
+      macros: testMacros
+    )
+    #endif
+  }
+
+  func testRouteWithOptionalStringArray() throws {
+    #if canImport(DeepLinkMacros)
+    assertMacroExpansion(
+      """
+      enum FilterDestination {
+        @DeepLinkRoute("/filter", query: ["tags"])
+        case filterWithTags(tags: [String]?)
+      }
+      """,
+      expandedSource: """
+      enum FilterDestination {
+        case filterWithTags(tags: [String]?)
+
+        static let __route_filterWithTags = DeepLinkRouteDefinition<Self>(
+          pattern: "/filter",
+          segments: [.literal("filter")],
+          queryParams: ["tags"],
+          build: { params in
+              let tags = params.queryStrings("tags")
+              return .filterWithTags(tags: tags)
+            }
+        )
+      }
+      """,
+      macros: testMacros
+    )
+    #endif
+  }
+
+  func testRouteWithRequiredIntArray() throws {
+    #if canImport(DeepLinkMacros)
+    assertMacroExpansion(
+      """
+      enum RequiredDestination {
+        @DeepLinkRoute("/required", query: ["values"])
+        case requiredArray(values: [Int])
+      }
+      """,
+      expandedSource: """
+      enum RequiredDestination {
+        case requiredArray(values: [Int])
+
+        static let __route_requiredArray = DeepLinkRouteDefinition<Self>(
+          pattern: "/required",
+          segments: [.literal("required")],
+          queryParams: ["values"],
+          build: { params in
+              let values = (params.queryInts("values") ?? [])
+              return .requiredArray(values: values)
+            }
+        )
+      }
+      """,
+      macros: testMacros
+    )
+    #endif
+  }
+
+  func testRouteWithMixedScalarAndArray() throws {
+    #if canImport(DeepLinkMacros)
+    assertMacroExpansion(
+      """
+      enum MixedDestination {
+        @DeepLinkRoute("/mixed", query: ["name", "ids"])
+        case mixedParams(name: String?, ids: [Int]?)
+      }
+      """,
+      expandedSource: """
+      enum MixedDestination {
+        case mixedParams(name: String?, ids: [Int]?)
+
+        static let __route_mixedParams = DeepLinkRouteDefinition<Self>(
+          pattern: "/mixed",
+          segments: [.literal("mixed")],
+          queryParams: ["name", "ids"],
+          build: { params in
+              let name = params.query("name")
+              let ids = params.queryInts("ids")
+              return .mixedParams(name: name, ids: ids)
+            }
+        )
+      }
+      """,
+      macros: testMacros
+    )
+    #endif
+  }
+
+  func testRouteWithDoubleArray() throws {
+    #if canImport(DeepLinkMacros)
+    assertMacroExpansion(
+      """
+      enum PriceDestination {
+        @DeepLinkRoute("/prices", query: ["values"])
+        case priceFilter(values: [Double]?)
+      }
+      """,
+      expandedSource: """
+      enum PriceDestination {
+        case priceFilter(values: [Double]?)
+
+        static let __route_priceFilter = DeepLinkRouteDefinition<Self>(
+          pattern: "/prices",
+          segments: [.literal("prices")],
+          queryParams: ["values"],
+          build: { params in
+              let values = params.queryDoubles("values")
+              return .priceFilter(values: values)
+            }
+        )
+      }
+      """,
+      macros: testMacros
+    )
+    #endif
+  }
+
+  func testRouteWithBoolArray() throws {
+    #if canImport(DeepLinkMacros)
+    assertMacroExpansion(
+      """
+      enum FlagDestination {
+        @DeepLinkRoute("/flags", query: ["enabled"])
+        case flagFilter(enabled: [Bool]?)
+      }
+      """,
+      expandedSource: """
+      enum FlagDestination {
+        case flagFilter(enabled: [Bool]?)
+
+        static let __route_flagFilter = DeepLinkRouteDefinition<Self>(
+          pattern: "/flags",
+          segments: [.literal("flags")],
+          queryParams: ["enabled"],
+          build: { params in
+              let enabled = params.queryBools("enabled")
+              return .flagFilter(enabled: enabled)
+            }
+        )
+      }
+      """,
+      macros: testMacros
+    )
+    #endif
+  }
 }

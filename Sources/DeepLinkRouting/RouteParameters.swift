@@ -61,4 +61,50 @@ public struct RouteParameters: Sendable {
   public subscript(_ name: String) -> String? {
     pathParams[name] ?? queryParams[name]
   }
+
+  // MARK: - Array Access (Query Parameters Only)
+
+  /// Gets an array of Ints from a comma-separated query parameter.
+  /// Returns nil if the parameter is missing or empty.
+  public func queryInts(_ name: String) -> [Int]? {
+    guard let value = queryParams[name], !value.isEmpty else { return nil }
+    let result = value.split(separator: ",")
+      .compactMap { Int(String($0).trimmingCharacters(in: .whitespaces)) }
+    return result.isEmpty ? nil : result
+  }
+
+  /// Gets an array of Strings from a comma-separated query parameter.
+  /// Returns nil if the parameter is missing or empty.
+  public func queryStrings(_ name: String) -> [String]? {
+    guard let value = queryParams[name], !value.isEmpty else { return nil }
+    let result = value.split(separator: ",")
+      .map { String($0).trimmingCharacters(in: .whitespaces) }
+      .filter { !$0.isEmpty }
+    return result.isEmpty ? nil : result
+  }
+
+  /// Gets an array of Doubles from a comma-separated query parameter.
+  /// Returns nil if the parameter is missing or empty.
+  public func queryDoubles(_ name: String) -> [Double]? {
+    guard let value = queryParams[name], !value.isEmpty else { return nil }
+    let result = value.split(separator: ",")
+      .compactMap { Double(String($0).trimmingCharacters(in: .whitespaces)) }
+    return result.isEmpty ? nil : result
+  }
+
+  /// Gets an array of Bools from a comma-separated query parameter.
+  /// Returns nil if the parameter is missing or empty.
+  /// Recognizes: true/false, 1/0, yes/no (case-insensitive)
+  public func queryBools(_ name: String) -> [Bool]? {
+    guard let value = queryParams[name], !value.isEmpty else { return nil }
+    let result = value.split(separator: ",")
+      .compactMap { element -> Bool? in
+        switch String(element).trimmingCharacters(in: .whitespaces).lowercased() {
+        case "true", "1", "yes": return true
+        case "false", "0", "no": return false
+        default: return nil
+        }
+      }
+    return result.isEmpty ? nil : result
+  }
 }

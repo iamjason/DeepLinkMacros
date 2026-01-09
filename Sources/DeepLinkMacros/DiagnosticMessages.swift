@@ -20,6 +20,8 @@ enum DiagnosticError: Error, CustomStringConvertible {
   case queryMustBeStringArray
   case parameterCountMismatch(pattern: Int, case: Int)
   case unsupportedParameterType(String)
+  case arrayInPathParameter(String)
+  case unsupportedArrayElementType(String)
 
   var description: String {
     switch self {
@@ -46,7 +48,11 @@ enum DiagnosticError: Error, CustomStringConvertible {
     case .parameterCountMismatch(let pattern, let caseCount):
       return "Pattern has \(pattern) parameters but case has \(caseCount) required parameters"
     case .unsupportedParameterType(let type):
-      return "Unsupported parameter type '\(type)'. Supported types: String, Int, Bool"
+      return "Unsupported parameter type '\(type)'. Supported types: String, Int, Bool, [String], [Int], [Double], [Bool]"
+    case .arrayInPathParameter(let name):
+      return "Array parameter '\(name)' cannot be used in URL path. Arrays are only supported as query parameters."
+    case .unsupportedArrayElementType(let type):
+      return "Unsupported array element type '\(type)'. Supported array element types: String, Int, Double, Bool"
     }
   }
 }

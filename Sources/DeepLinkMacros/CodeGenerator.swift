@@ -89,7 +89,13 @@ struct CodeGenerator {
       if isPathParam {
         accessor = generatePathAccessor(urlParamName: urlParamName, type: param.type, isOptional: param.isOptional)
       } else if queryParams.contains(paramName) || queryParams.contains(urlParamName) {
-        accessor = generateQueryAccessor(urlParamName: urlParamName, type: param.type, isOptional: param.isOptional)
+        accessor = generateQueryAccessor(
+          urlParamName: urlParamName,
+          type: param.type,
+          isOptional: param.isOptional,
+          isArray: param.isArray,
+          elementType: param.elementType
+        )
       } else if param.hasDefault {
         // Parameter has default value, skip extraction
         continue
@@ -98,10 +104,12 @@ struct CodeGenerator {
         accessor = "nil"
       }
 
-      if param.isOptional || param.hasDefault {
-        extractionLines.append("let \(paramName) = \(accessor)")
-      } else {
+      // Non-optional arrays use ?? [] in accessor, so don't need guard
+      let needsGuard = !param.isOptional && !param.hasDefault && !param.isArray
+      if needsGuard {
         extractionLines.append("guard let \(paramName) = \(accessor) else { return nil }")
+      } else {
+        extractionLines.append("let \(paramName) = \(accessor)")
       }
 
       caseArguments.append("\(paramName): \(paramName)")
@@ -129,7 +137,33 @@ struct CodeGenerator {
     }
   }
 
-  private static func generateQueryAccessor(urlParamName: String, type: String, isOptional: Bool) -> String {
+  private static func generateQueryAccessor(urlParamName: String, type: String, isOptional: Bool, isArray: Bool, elementType: String?) -> String {
+    // Handle array types
+    if isArray, let element = elementType {
+      switch element {
+      case "Int":
+        return isOptional
+          ? "params.queryInts(\"\(urlParamName)\")"
+          : "(params.queryInts(\"\(urlParamName)\") ?? [])"
+      case "String":
+        return isOptional
+          ? "params.queryStrings(\"\(urlParamName)\")"
+          : "(params.queryStrings(\"\(urlParamName)\") ?? [])"
+      case "Double":
+        return isOptional
+          ? "params.queryDoubles(\"\(urlParamName)\")"
+          : "(params.queryDoubles(\"\(urlParamName)\") ?? [])"
+      case "Bool":
+        return isOptional
+          ? "params.queryBools(\"\(urlParamName)\")"
+          : "(params.queryBools(\"\(urlParamName)\") ?? [])"
+      default:
+        // Unsupported array element type - will be caught by validation
+        return "params.queryStrings(\"\(urlParamName)\")"
+      }
+    }
+
+    // Handle scalar types
     switch type {
     case "Int":
       return "params.queryInt(\"\(urlParamName)\")"

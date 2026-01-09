@@ -33,7 +33,25 @@ public struct DeepLinkRouteMacro: PeerMacro {
     // 4. Analyze the enum case
     let caseInfo = try CaseAnalyzer.analyze(caseElement)
 
-    // 5. Generate the route definition
+    // 5. Validate array parameter usage
+    let pathParamCount = patternSegments.filter { if case .parameter = $0 { return true }; return false }.count
+    for (index, param) in caseInfo.parameters.enumerated() {
+      if param.isArray {
+        // Arrays cannot be used as path parameters
+        if index < pathParamCount {
+          throw DiagnosticError.arrayInPathParameter(param.name)
+        }
+        // Validate array element type is supported
+        if let elementType = param.elementType {
+          let supportedTypes = ["Int", "String", "Double", "Bool"]
+          if !supportedTypes.contains(elementType) {
+            throw DiagnosticError.unsupportedArrayElementType(elementType)
+          }
+        }
+      }
+    }
+
+    // 6. Generate the route definition
     let generatedCode = CodeGenerator.generate(
       caseName: caseInfo.name,
       pattern: arguments.pattern,

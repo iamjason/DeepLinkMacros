@@ -106,9 +106,42 @@ case episode(slug: String)
 | `Int` | `"123"` | `Int.init` |
 | `Bool` | `"true"`, `"1"`, `"yes"` | `true` |
 | `Bool` | `"false"`, `"0"`, `"no"` | `false` |
+| `Double` | `"3.14"` | `Double.init` |
 | `String?` | Missing | `nil` |
 | `Int?` | Missing | `nil` |
 | `Bool?` | Missing | `nil` |
+| `Double?` | Missing | `nil` |
+
+### Array Parameters
+
+Array parameters are supported in query strings using comma-separated values:
+
+```swift
+@DeepLinkDestination
+enum SearchDestination {
+  @DeepLinkRoute("/search", query: ["categories", "tags"])
+  case search(categories: [Int]?, tags: [String]?)
+}
+
+// Matches: /search?categories=1,2,3&tags=swift,ios
+// Result: .search(categories: [1, 2, 3], tags: ["swift", "ios"])
+```
+
+**Supported array types:**
+
+| Type | URL Value | Result |
+|------|-----------|--------|
+| `[Int]?` | `"1,2,3"` | `[1, 2, 3]` |
+| `[String]?` | `"a,b,c"` | `["a", "b", "c"]` |
+| `[Double]?` | `"1.5,2.5"` | `[1.5, 2.5]` |
+| `[Bool]?` | `"true,false"` | `[true, false]` |
+| `[Int]` (required) | Missing | `[]` (empty array) |
+
+**Notes:**
+- Invalid elements are silently skipped (e.g., `"1,bad,3"` → `[1, 3]`)
+- Whitespace is trimmed (e.g., `"1, 2, 3"` → `[1, 2, 3]`)
+- Empty or missing values return `nil` for optional arrays, `[]` for required arrays
+- Arrays are only supported in query parameters, not path parameters
 
 ## Multi-Enum Routing
 
@@ -220,11 +253,18 @@ result?.sourceType  // "RestaurantDestination"
 Extracted URL parameters.
 
 ```swift
+// Scalar accessors
 params.path("id")          // String? from path
 params.pathInt("id")       // Int? from path
 params.query("q")          // String? from query
 params.queryInt("page")    // Int? from query
 params.queryBool("flag")   // Bool? from query
+
+// Array accessors (comma-separated values)
+params.queryInts("ids")    // [Int]? from query
+params.queryStrings("tags")// [String]? from query
+params.queryDoubles("prices") // [Double]? from query
+params.queryBools("flags") // [Bool]? from query
 ```
 
 ## Adding New Routes
